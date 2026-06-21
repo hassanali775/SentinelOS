@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from services.control_plane.api.routes import runs
+from services.control_plane.api.routes import runs, events # <--- Added events here
 
 app = FastAPI(
     title="SentinelOS Control Plane",
@@ -9,6 +9,7 @@ app = FastAPI(
 
 # Mount our custom modular system route tables
 app.include_router(runs.router)
+app.include_router(events.router) # <--- Added this inclusion line
 
 @app.get("/api/v1/health", tags=["System Utility"])
 async def system_health_check():
