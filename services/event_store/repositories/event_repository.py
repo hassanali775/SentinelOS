@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional  # <--- Added Optional here
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
