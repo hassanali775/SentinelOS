@@ -1,0 +1,178 @@
+name: sentinelos
+
+# ══════════════════════════════════════════════════════════════
+# SentinelOS — Local Development Infrastructure
+#
+# Services:
+#   postgres      → PostgreSQL 16 (Event Store)
+#   redpanda      → Redpanda (Kafka-compatible message broker)
+#   redpanda-console → Redpanda Console (broker UI)
+#   pgadmin       → pgAdmin 4 (database UI)
+#   jaeger        → Jaeger (distributed tracing UI, Phase 3)
+#
+# Networks:
+#   sentinel-net  → Internal bridge network
+#                   All services communicate here
+#
+# Volumes:
+#   postgres_data → Persists database across restarts
+#   redpanda_data → Persists Redpanda topics across restarts
+#
+# Usage:
+#   Start all:    docker compose up -d
+#   Start subset: docker compose up -d postgres redpanda
+#   Logs:         docker compose logs -f <service>
+#   Stop all:     docker compose down
+#   Wipe all:     docker compose down -v  (destroys volumes)
+# ══════════════════════════════════════════════════════════════
+
+services:
+
+  # ────────────────────────────────────────────────────────────
+  # PostgreSQL 16 — Event Store + Projection Store
+  # ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: sentinelos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sentinelos
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel_secret
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinelos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - sentinel-net
+
+  # ────────────────────────────────────────────────────────────
+  # Redpanda — Kafka-compatible Event Streaming
+  #
+  # Why Redpanda instead of Kafka?
+  #   - Single binary, no ZooKeeper dependency
+  #   - Kafka-compatible API (same client code)
+  #   - 10x lower latency for development workloads
+  #   - Built-in schema registry (future use)
+  # ────────────────────────────────────────────────────────────
+  redpanda:
+    image: redpandadata/redpanda:v24.1.1
+    container_name: sentinelos-redpanda
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      # Internal address: container-to-container communication
+      # External address: host machine access (your Python code)
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=warn
+    ports:
+      - "18081:18081"   # Schema Registry (external)
+      - "18082:18082"   # Pandaproxy REST (external)
+      - "19092:19092"   # Kafka API (external — use this in .env)
+      - "9644:9644"     # Admin API
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - sentinel-net
+
+  # ────────────────────────────────────────────────────────────
+  # Redpanda Console — Visual Topic + Message Inspector
+  # Access at: http://localhost:8080
+  # ────────────────────────────────────────────────────────────
+  redpanda-console:
+    image: redpandadata/console:v2.6.0
+    container_name: sentinelos-redpanda-console
+    restart: unless-stopped
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      CONFIG_FILEPATH: /etc/redpanda/console-config.yaml
+    volumes:
+      - ./infra/redpanda/console-config.yaml:/etc/redpanda/console-config.yaml:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - sentinel-net
+
+  # ────────────────────────────────────────────────────────────
+  # pgAdmin 4 — PostgreSQL Visual Interface
+  # Access at: http://localhost:5050
+  # Login: admin@sentinel.dev / sentinel_admin
+  # ────────────────────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:8.6
+    container_name: sentinelos-pgadmin
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@sentinel.dev
+      PGADMIN_DEFAULT_PASSWORD: sentinel_admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    volumes:
+      - ./infra/postgres/pgadmin-servers.json:/pgadmin4/servers.json:ro
+    ports:
+      - "5050:80"
+    networks:
+      - sentinel-net
+
+  # ────────────────────────────────────────────────────────────
+  # Jaeger — Distributed Tracing Backend (Phase 3)
+  # Included now so the network plumbing is ready.
+  # Access at: http://localhost:16686
+  # ────────────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: sentinelos-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC receiver
+      - "4318:4318"     # OTLP HTTP receiver
+    networks:
+      - sentinel-net
+
+# ──────────────────────────────────────────────
+# Networks
+# ──────────────────────────────────────────────
+networks:
+  sentinel-net:
+    driver: bridge
+    name: sentinel-net
+
+# ──────────────────────────────────────────────
+# Volumes
+# ──────────────────────────────────────────────
+volumes:
+  postgres_data:
+    name: sentinelos-postgres-data
+  redpanda_data:
+    name: sentinelos-redpanda-data

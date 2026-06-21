@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "SentinelOS Local",
+      "Group": "SentinelOS",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "sentinelos",
+      "Username": "sentinel",
+      "SSLMode": "prefer",
+      "PassFile": "/pgpass"
+    }
+  }
+}

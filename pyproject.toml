@@ -1,0 +1,130 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sentinelos"
+version = "0.1.0"
+description = "A Deterministic Agent Control Plane for AI Agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+dependencies = [
+    # Web framework
+    "fastapi==0.111.0",
+    "uvicorn[standard]==0.29.0",
+
+    # Database - async SQLAlchemy + PostgreSQL driver
+    "sqlalchemy[asyncio]==2.0.30",
+    "asyncpg==0.29.0",
+    "alembic==1.13.1",
+
+    # Validation + settings
+    "pydantic==2.7.1",
+    "pydantic-settings==2.2.1",
+
+    # Kafka / Redpanda client
+    "aiokafka==0.11.0",
+
+    # Observability
+    "opentelemetry-api==1.24.0",
+    "opentelemetry-sdk==1.24.0",
+    "opentelemetry-instrumentation-fastapi==0.45b0",
+    "opentelemetry-instrumentation-sqlalchemy==0.45b0",
+    "opentelemetry-exporter-otlp-proto-grpc==1.24.0",
+
+    # Utilities
+    "python-ulid==2.2.0",
+    "structlog==24.1.0",
+    "python-dotenv==1.0.1",
+    "httpx==0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest==8.2.0",
+    "pytest-asyncio==0.23.6",
+    "pytest-cov==5.0.0",
+    "httpx==0.27.0",
+
+    # Database testing
+    "pytest-postgresql==6.0.0",
+
+    # Code quality
+    "ruff==0.4.4",
+    "mypy==1.10.0",
+
+    # Type stubs
+    "types-python-dateutil",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["services", "shared"]
+
+# ──────────────────────────────────────────────
+# Ruff — linter + formatter (replaces flake8, black, isort)
+# ──────────────────────────────────────────────
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long — ruff formatter handles this
+    "B008",  # do not perform function calls in default arguments
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["services", "shared"]
+
+# ──────────────────────────────────────────────
+# Mypy — static type checking
+# ──────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+# ──────────────────────────────────────────────
+# Pytest
+# ──────────────────────────────────────────────
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--cov=services",
+    "--cov=shared",
+    "--cov-report=term-missing",
+    "--cov-report=html:coverage_html",
+    "-v",
+]
+
+# ──────────────────────────────────────────────
+# Coverage
+# ──────────────────────────────────────────────
+[tool.coverage.run]
+source = ["services", "shared"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
