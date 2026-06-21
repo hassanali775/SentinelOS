@@ -8,7 +8,8 @@ class AgentEventModel(Base):
     __tablename__ = "agent_events"
 
     event_id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    run_id: Mapped[UUID] = mapped_column(ForeignKey("agent_runs".run_id, ondelete="CASCADE"), nullable=False)
+    # Pass the exact 'table_name.column_name' syntax as a pure string literal
+    run_id: Mapped[UUID] = mapped_column(ForeignKey("agent_runs.run_id", ondelete="CASCADE"), nullable=False)
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
