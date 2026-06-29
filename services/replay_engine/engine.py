@@ -21,57 +21,46 @@ class ReplayEngine:
         Pure, deterministic state reducer loop.
         Processes chronological historical events to build the current state.
         """
-        # Initialize an empty state object for this specific run context
         state = ReconstructedState(run_id=run_id)
         
-        for event in event_stream:
+        # Sort the stream explicitly by sequence number to guarantee ordered replay
+        sorted_stream = sorted(event_stream, key=lambda e: e.sequence_number)
+        
+        for event in sorted_stream:
             state.current_sequence = event.sequence_number
             state.last_updated = event.timestamp
             
-            # Match the raw string event type to our system boundaries
             event_type = event.event_type
-            payload = event.payload or {}
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            
+            # Base dictionary matching the expected provider mapping contract
+            step_entry = {
+                "step": event.sequence_number,
+                "action": event_type,
+                "payload": payload  # ── CRITICAL FIX: Retain raw payload for LLM parsing ──
+            }
             
             # State mutation reduction logic
             if event_type == EventType.RUN_STARTED.value:
                 state.status = "RUNNING"
-                state.execution_steps.append({
-                    "step": event.sequence_number,
-                    "action": "Lifecycle initialization completed."
-                })
                 
             elif event_type == EventType.PLAN_GENERATED.value:
-                state.execution_steps.append({
-                    "step": event.sequence_number,
-                    "action": f"LLM Plan Formulated: {payload.get('plan', '')}"
-                })
+                pass
                 
             elif event_type == EventType.TOOL_CALLED.value:
                 tool_name = payload.get("tool_name", "unknown_tool")
-                state.tools_used.append(tool_name)
-                state.execution_steps.append({
-                    "step": event.sequence_number,
-                    "action": f"Invoked infrastructure tool component: [{tool_name}]"
-                })
+                if tool_name not in state.tools_used:
+                    state.tools_used.append(tool_name)
                 
-            elif event_type == EventType.TOOL_OUTPUT_RECEIVED.value:
-                state.execution_steps.append({
-                    "step": event.sequence_number,
-                    "action": f"Captured execution outcome: {payload.get('output', '')}"
-                })
+            elif event_type == EventType.TOOL_OUTPUT_RECEIVED.value or event_type == "TOOL_OUTPUT":
+                pass
                 
             elif event_type == EventType.RUN_COMPLETED.value:
                 state.status = "COMPLETED"
-                state.execution_steps.append({
-                    "step": event.sequence_number,
-                    "action": "Lifecycle execution reached terminal success state."
-                })
                 
             elif event_type == EventType.RUN_FAILED.value:
                 state.status = "FAILED"
-                state.execution_steps.append({
-                    "step": event.sequence_number,
-                    "action": f"Fatal execution exception captured: {payload.get('error', 'Unknown application error')}"
-                })
+            
+            state.execution_steps.append(step_entry)
                 
         return state

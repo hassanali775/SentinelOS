@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from uuid import UUID, uuid4
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, Dict
 
 class EventEnvelope(BaseModel):
@@ -15,7 +15,7 @@ class EventEnvelope(BaseModel):
     correlation_id: UUID
     causation_id: UUID | None = None
     sequence_number: int
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     schema_version: int = 1
     payload: Dict[str, Any]
 
