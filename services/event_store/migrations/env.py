@@ -14,6 +14,7 @@ from shared.config.settings import get_settings
 from services.event_store.database import Base
 from services.event_store.models.agent_run import AgentRunModel
 from services.event_store.models.agent_event import AgentEventModel
+from services.event_store.models.mission import MissionModel
 
 # Resolve the nested settings singleton instance
 settings = get_settings()
