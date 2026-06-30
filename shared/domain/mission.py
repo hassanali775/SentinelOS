@@ -32,7 +32,7 @@ See ADR-001.
     priority: int = 1
 
     created_at: datetime = field(
-        default_factory=lambda: datetime.now(UTC)
+        default_factory=lambda:datetime.now(timezone.utc)
     )
 
     metadata: dict[str, Any] = field(default_factory=dict)
