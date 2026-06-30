@@ -4,6 +4,7 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from services.control_plane.api.routes import runs, events
+from services.control_plane.api.routes.missions import router as missions_router
 
 app = FastAPI(
     title="SentinelOS Control Plane",
@@ -14,6 +15,7 @@ app = FastAPI(
 # Mount our custom modular system route tables
 app.include_router(runs.router)
 app.include_router(events.router)
+app.include_router(missions_router, prefix="/api/v1")
 
 @app.get("/api/v1/runs/{run_id}/stream", tags=["Telemetry"])
 async def stream_run_events(run_id: str):

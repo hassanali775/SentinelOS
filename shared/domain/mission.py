@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 from typing import Any
 from shared.domain.mission_states import MissionStatus
